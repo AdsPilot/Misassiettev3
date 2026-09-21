@@ -21,13 +21,21 @@ const rootPngAssets = {
   name: "copy-root-recipe-illustrations",
   async closeBundle() {
     const projectRoot = process.cwd();
-    const publicOutput = join(projectRoot, "dist", "client");
-    await mkdir(publicOutput, { recursive: true });
+    const publicOutputs = [
+      join(projectRoot, "dist", "client"),
+      join(projectRoot, "dist", "client", "illustrations"),
+      join(projectRoot, "dist", "client", "illustrations", "uniform"),
+    ];
+    await Promise.all(publicOutputs.map((directory) => mkdir(directory, { recursive: true })));
     const files = await readdir(projectRoot);
     await Promise.all(
       files
         .filter((file) => file.toLowerCase().endsWith(".png"))
-        .map((file) => copyFile(join(projectRoot, file), join(publicOutput, file))),
+        .flatMap((file) =>
+          publicOutputs.map((directory) =>
+            copyFile(join(projectRoot, file), join(directory, file)),
+          ),
+        ),
     );
   },
 };
