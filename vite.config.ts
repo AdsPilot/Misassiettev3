@@ -1,5 +1,7 @@
 import vinext from "vinext";
 import { defineConfig } from "vite";
+import { copyFile, mkdir, readdir } from "node:fs/promises";
+import { join } from "node:path";
 import hostingConfig from "./.openai/hosting.json";
 import { readExecutionProfile } from "./scripts/execution-profile.mjs";
 import { sites } from "./build/sites-vite-plugin";
@@ -12,6 +14,23 @@ const { d1, r2 } = hostingConfig;
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const managedLinux = readExecutionProfile() === "managed-linux";
+
+// The recipe illustrations were added directly at the project root. Copy them
+// into Vite's public build output so Cloudflare can serve them at /<name>.png.
+const rootPngAssets = {
+  name: "copy-root-recipe-illustrations",
+  async closeBundle() {
+    const projectRoot = process.cwd();
+    const publicOutput = join(projectRoot, "dist", "client");
+    await mkdir(publicOutput, { recursive: true });
+    const files = await readdir(projectRoot);
+    await Promise.all(
+      files
+        .filter((file) => file.toLowerCase().endsWith(".png"))
+        .map((file) => copyFile(join(projectRoot, file), join(publicOutput, file))),
+    );
+  },
+};
 
 const localBindingConfig = {
   main: "vinext/server/fetch-handler",
@@ -58,6 +77,7 @@ export default defineConfig(async () => {
     plugins: [
       vinext(),
       sites({ mockAuth: !managedLinux }),
+      rootPngAssets,
       cloudflare({
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
         inspectorPort: false,
